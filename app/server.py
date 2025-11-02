@@ -62,19 +62,74 @@ app = FastAPI(
 def health():
     return {"status": "ok", "model_uri": MODEL_URI}
 
-@app.post(
-    "/predict",
-    response_model=PredictResponse,
-    tags=["prediction"],
-    summary="Predict Iris species",
-    description="Send one or more Iris samples; returns class id (0,1,2) and label (setosa, versicolor, virginica)."
-)
-def predict(req: PredictRequest) -> PredictResponse:
-    # TODO Run predict
-    return PredictResponse(
-        class_id=[],
-        class_label=[]
+# @app.post(
+#     "/predict",
+#     response_model=PredictResponse,
+#     tags=["prediction"],
+#     summary="Predict Iris species",
+#     description="Send one or more Iris samples; returns class id (0,1,2) and label (setosa, versicolor, virginica)."
+# )
+# def predict(req: PredictRequest) -> PredictResponse:
+#     # TODO Run predict
+#     return PredictResponse(
+#         class_id=[],
+#         class_label=[]
+#     )
+    
+@app.post( 
+    "/predict", 
+    response_model = PredictResponse, 
+    tags = ["prediction"], 
+    summary = "Predict Iris Species", 
+    description = "Send one or more Iris samples; return class id (0, 1, 2) and label (setosa, versicolor, virginica)."
     )
+    
+def predict(req: PredictRequest) -> PredictResponse: 
+    # Convert samples to list of lists (model excpects tabular input) 
+    input_data = [
+        [s.sepal_length, s.sepal_width, s.petal_length, s.petal_width ]
+        for s in req.samples
+        ]
+    # Run model prediction
+    preds = model.predict(input_data) 
+    
+    # Convert numeric IDs to human-readable labels 
+    labels = [IRIS_LABELS[int(i)] for i in preds] 
+    
+    # Return predictions 
+    return PredictResponse( 
+        class_id = [int(x) for x in preds], 
+        class_label = labels
+        ) 
+
+
+@app.get(
+    "/model_info", 
+    tags = ["model"], 
+    summary = "Retrieve current model version", 
+    description = "Retrieve current model version from MlFlow"
+)
+def get_model_info(): 
+    return {
+        "model_name": MODEL_NAME, 
+        "current_version": MODEL_VERSION, 
+        "model_uri": MODEL_URI
+        } 
+
+@app.post(
+    "/update_model/{version}",
+    tags=["model"],
+    summary="Update model version",
+    description="Choose the model version for inference pipeline"
+)
+def update_model_version(version: str):
+    global model, MODEL_VERSION, MODEL_URI
+    MODEL_VERSION = version
+    MODEL_URI = f"models:/{MODEL_NAME}/{MODEL_VERSION}"
+    model = mlflow.pyfunc.load_model(MODEL_URI)
+    return {"message": f"Model updated to version {version}"}
+
+        
     
 # TODO Add endpoint to get the current model serving version
 # TODO Add endpoint to update the serving version
